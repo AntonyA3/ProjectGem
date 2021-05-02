@@ -1,0 +1,63 @@
+
+
+input[type=number]{
+    position: absolute;
+    width: 16px;
+}
+
+body{
+    overflow: scroll;
+}
+#canvas{
+
+    background-color: transparent;
+    border: solid black 1px;
+}
+
+
+#top-container{
+    display: grid;
+
+    grid-template-columns: 640px;
+    grid-template-rows: 16px 24px auto;
+    row-gap: 8px; 
+    column-gap: 8px;
+}
+
+#right-panel{
+    grid-template-rows: 24px 232px 24px 232px; 
+    display: grid; 
+    grid-row: 1 / span 2; 
+    background-color: rebeccapurple;
+}
+
+
+
+#assets-toolbar-panel{
+    grid-template-rows: 24px 232px 24px 132px 24px 232px;
+    display: grid;
+    grid-column: span 2; 
+    grid-row: 1 / span 2; 
+    background-color: pink;
+}
+
+#asset-button-container{
+    background-color: royalblue;
+    overflow: auto;
+}
+
+.tree-list{
+    list-style: none;
+    visibility: inherit;
+}
+
+.tree-view-parent{
+    list-style: none;
+}
+
+table{
+    border: solid 1px blue;
+}
+title{
+    background-color: orange;
+}

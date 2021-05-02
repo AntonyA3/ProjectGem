@@ -1,0 +1,1296 @@
+
+
+
+const EngineState = {
+    EditMode: 0
+}
+
+const EngineTool = {
+    PanTool: 0,
+    MoveTool: 1,
+    RotateTool: 2,
+    ScaleTool: 3,
+    BoxScaleTool: 4
+}
+const SelectableEntity ={
+    NoneSelected: 0,
+    PlayerSelected: 1,
+    FloorSelected: 2,
+    CircleRoomSelected: 3,
+    WallSelected: 4
+
+}
+
+const CircleScaleState = {
+    NotScaling: 0,
+    RadiusScaling: 1
+}
+const BoxScaleState = {
+    NotScaling: 0,
+    ScalingTop: 1,
+    ScalingBottom: 2,
+    ScalingLeft: 3,
+    ScalingRight: 4
+}
+
+const SelectableData = {
+    NoneSelected: 0,
+    RectSelected: 1,
+    CircleSelected: 2,
+    OrientedRectSelected: 3
+}
+
+const MoveToolState ={
+    NotDragging: 0,
+    DraggingX: 1,
+    DraggingY: 2
+}
+
+const RotateToolState = {
+    NotRotating: 0,
+    Rotating: 1
+}
+
+const ScaleToolState = {
+    NotScaling: 0,
+    XScaling: 1,
+    YScaling: 2
+}
+
+function Engine(game,canvas, graphicsContext){
+    this.canvas = canvas;
+    this.game = game;
+    this.keyboardInput = game.keyboardInput;
+    this.mouseInput = game.mouseInput;
+    this.camera = {
+        clearArea:{x:0,y:0, sizex:640, sizey:480},
+        
+        position: [0,0],
+        angle: 0,
+        origin: [320, 240]}
+    this.ctx = graphicsContext;
+    this.state = EngineState.EditMode;
+    this.tool = EngineTool.PanTool;
+    this.guides = {
+        grid:{
+            active: true,
+            offsetX: 0,
+            offsetY: 0,
+            incrementsX: 32,
+            incrementsY: 32
+        }
+    }
+    this.snapToGrid ={
+        active: false,
+        xSnap: 8,
+        ySnap: 8
+    }
+    
+    this.selectedEntity = SelectableEntity.NoneSelected;
+    this.selectedEntityIndex = 0;
+    this.selectedData = SelectableData.NoneSelected;
+    this.selectedDataIndex = 0;
+    this.toolData = {
+        moveTool:{
+            position: [0,0],
+            yDragRect: {x:-4, y:-64, sizex:8, sizey: 56},
+            xDragRect: {x:4, y:-4, sizex:56, sizey: 8},
+            selectedEntity: SelectableEntity.NoneSelected,
+            selectedEntityIndex: 0,
+            state: MoveToolState.NotDragging
+        },
+
+        boxScaleTool: {
+            rect: {x:-32, y: -32, sizex:64, sizey:64},
+            leftPulley:{x: -32-16, y:-4, sizex: 8, sizey: 8},
+            rightPulley:{x: 32+8, y:-4, sizex: 8, sizey: 8},
+            topPulley:{x: -4, y:-(32 + 16), sizex: 8, sizey: 8},
+            bottomPulley:{x: -4, y:32 + 8, sizex: 8, sizey: 8},
+            state: BoxScaleState.NotScaling
+        },
+        circleScaleTool:{
+            circle: {position:[0,0], radius: 16},
+            radiusPulley:{x: 20, y: -4, sizex: 8, sizey: 8},
+            state: CircleScaleState.NotScaling
+
+        },
+        rotateTool:{
+            position: [0,0],
+            outerCircle: {
+                position:[0,0],
+                radius: 64,
+            },
+            innerCircle: {
+                position:[0,0],
+                radius: 56,
+            },
+            startPoint:[0,0],
+            startAngle: 0,
+            endPoint:[0,0],
+            selectedEntity: SelectableEntity.NoneSelected,
+            selectedEntityIndex: 0,
+            state: RotateToolState.NotRotating
+        },
+        scaleTool:{
+            position:[0,0],
+            xLine: {x:-4, y:-64, sizex:8, sizey: 56},
+            yLine: {x:4, y:-4, sizex:56, sizey: 8},
+            xPulley: {x:52, y: -4, sizex:8, sizey: 8},
+            yPulley: {x:-4, y: -68, sizex:8, sizey: 8},
+
+            startDrag:[0,0],
+            startScale: [0,0],
+            selectedEntity: SelectableEntity.NoneSelected,
+            selectedEntityIndex: 0,
+            state: ScaleToolState.NotScaling
+
+        }
+    }
+    this.toolButtons = {
+        moveTool: document.getElementById("move-tool-button"),
+        panTool: document.getElementById("pan-tool-button"),
+        rotateTool: document.getElementById("rotate-tool-button"),
+        scaleTool: document.getElementById("scale-tool-button")
+    }
+    this.exportButton = document.getElementById("export-button");
+    this.saveButton = document.getElementById("save-button");
+    this.loadButton = document.getElementById("load-button");
+
+    this.floorList = document.getElementById("floor-label-list");
+    this.wallList = document.getElementById("wall-label-list")
+    this.circleRoomList = document.getElementById("circleroom-label-list")
+    this.dragAssets = {
+        floor: document.getElementById("drag-on-floor"),
+        circleRoom: document.getElementById("drag-on-circleroom")
+    }
+    this.addAssetButton = {
+        floor: document.getElementById("add-floor-button"),
+        circleRoom: document.getElementById("add-circleroom-button"),
+        wall: document.getElementById("add-wall-button"),
+    }
+    this.canvasCursor = {
+        position: [0,0]
+    }
+    this.worldCursor = {
+        position: [0,0]
+    }
+    
+    
+
+    this.entityTree ={
+        root: document.getElementById("entity-tree"),
+        mainMenu: document.getElementById("main-menu-tree"),
+        world: document.getElementById("world-tree"),
+        preMenu: document.getElementById("pre-menu-tree"),
+        player: document.getElementById("player-label")
+    }
+    this.entityProperties = {
+        container: document.getElementById("property-editor-container"),
+        playerProperties:{
+            panel: document.createElement("table"),
+            originX: undefined,
+            originY: undefined
+        },
+        wallProperties:{
+            panel: document.createElement("table"),
+            rectX: undefined,
+            rectY: undefined,
+            rectSizeX: undefined,
+            rectSizeY: undefined
+        },
+        floorProperties:{
+            panel: document.createElement("table"),
+            rectX: undefined,
+            rectY: undefined,
+            rectSizeX: undefined,
+            rectSizeY: undefined
+        },
+        circleroomProperties:{
+            panel: document.createElement("table"),
+            rectX: undefined,
+            rectY: undefined,
+            rectSizeX: undefined,
+            rectSizeY: undefined,
+            circleX: undefined,
+            circleY: undefined,
+            circleRadius: undefined
+        }
+    }
+    
+
+   
+}
+
+function entityPropertiesSetup(engine){
+    engine.entityProperties.playerProperties.panel.innerHTML = ` 
+        <tr>
+            <th>Player</th>
+        </tr>
+        <tr>
+            <th>Origin:</th>
+            <td><input id=${"player-origin-x"} type=${"number"} size=${"4"}></input></td>
+            <td><input id=${"player-origin-y"} type=${"number"} size=${"4"}></input></td>
+        </tr>
+    `
+    engine.entityProperties.container.appendChild(engine.entityProperties.playerProperties.panel);
+    engine.entityProperties.playerProperties.originX = document.getElementById("player-origin-x");
+    engine.entityProperties.playerProperties.originY = document.getElementById("player-origin-y");
+    engine.entityProperties.container.removeChild(engine.entityProperties.playerProperties.panel);
+
+    /**Floor properties */
+    engine.entityProperties.floorProperties.panel.innerHTML = `
+    <tr>
+        <th>Floor</th>
+    </tr>
+    <tr>
+        <td>Rect:</td>
+        <td><input id=${"floor-rect-x"} type=${"number"} size=${"3"}></input></td>
+        <td><input id=${"floor-rect-y"} type=${"number"} size=${"3"}></input></td>
+        <td><input id=${"floor-rect-sizex"} type=${"number"} size=${"3"}></input></td>
+        <td><input id=${"floor-rect-sizey"} type=${"number"} size=${"3"}></input></td>
+    </tr>
+    `
+    engine.entityProperties.container.appendChild(engine.entityProperties.floorProperties.panel);
+    engine.entityProperties.floorProperties.rectX = document.getElementById("floor-rect-x");
+    engine.entityProperties.floorProperties.rectY = document.getElementById("floor-rect-y");
+    engine.entityProperties.floorProperties.rectSizeX = document.getElementById("floor-rect-sizex");
+    engine.entityProperties.floorProperties.rectSizeY = document.getElementById("floor-rect-sizey");
+    engine.entityProperties.container.removeChild(engine.entityProperties.floorProperties.panel);
+
+    /**Wall Properties */
+    engine.entityProperties.wallProperties.panel.innerHTML = `
+    <tr>
+        <th>Wall</th>
+    </tr>
+    <tr>
+        <td>Rect:</td>
+        <td><input id=${"wall-rect-x"} type=${"number"} size=${"3"}></input></td>
+        <td><input id=${"wall-rect-y"} type=${"number"} size=${"3"}></input></td>
+        <td><input id=${"wall-rect-sizex"} type=${"number"} size=${"3"}></input></td>
+        <td><input id=${"wall-rect-sizey"} type=${"number"} size=${"3"}></input></td>
+    </tr>
+    `
+    engine.entityProperties.container.appendChild(engine.entityProperties.wallProperties.panel);
+    engine.entityProperties.wallProperties.rectX = document.getElementById("wall-rect-x");
+    engine.entityProperties.wallProperties.rectY = document.getElementById("wall-rect-y");
+    engine.entityProperties.wallProperties.rectSizeX = document.getElementById("wall-rect-sizex");
+    engine.entityProperties.wallProperties.rectSizeY = document.getElementById("wall-rect-sizey");
+    engine.entityProperties.container.removeChild(engine.entityProperties.wallProperties.panel);
+    
+    /**Circle Room Properties */
+    engine.entityProperties.circleroomProperties.panel.innerHTML = `
+    <tr>
+        <th>Circle Room</th>
+    </tr>
+    <tr>
+        <td>Rect:</td>
+        <td><input id=${"circleroom-rect-x"} type=${"number"} size=${"3"}></input></td>
+        <td><input id=${"circleroom-rect-y"} type=${"number"} size=${"3"}></input></td>
+        <td><input id=${"circleroom-rect-sizex"} type=${"number"} size=${"3"}></input></td>
+        <td><input id=${"circleroom-rect-sizey"} type=${"number"} size=${"3"}></input></td>
+    </tr>
+    <tr>
+        <td>Circle:</td>
+        <td><input id=${"circleroom-circle-x"} type=${"number"} size=${"3"}></input></td>
+        <td><input id=${"circleroom-circle-y"} type=${"number"} size=${"3"}></input></td>
+        <td><input id=${"circleroom-circle-radius"} type=${"number"} size=${"3"}></input></td>
+    </tr>
+    `
+    engine.entityProperties.container.appendChild(engine.entityProperties.circleroomProperties.panel);
+    engine.entityProperties.circleroomProperties.rectX = document.getElementById("circleroom-rect-x");
+    engine.entityProperties.circleroomProperties.rectY = document.getElementById("circleroom-rect-y");
+    engine.entityProperties.circleroomProperties.rectSizeX = document.getElementById("circleroom-rect-sizex");
+    engine.entityProperties.circleroomProperties.rectSizeY = document.getElementById("circleroom-rect-sizey");
+    engine.entityProperties.circleroomProperties.circleX = document.getElementById("circleroom-circle-x");
+    engine.entityProperties.circleroomProperties.circleY = document.getElementById("circleroom-circle-y");
+    engine.entityProperties.circleroomProperties.circleRadius = document.getElementById("circleroom-circle-radius");
+    engine.entityProperties.container.removeChild(engine.entityProperties.circleroomProperties.panel);
+    
+}
+function treeViewSetup(engine){
+    let trees = engine.entityTree.root.querySelectorAll("li.parent-list");
+    trees.forEach(tree =>{
+        let caret = tree.getElementsByClassName("caret")[0];
+        caret.onclick = e =>{
+            if(e.target == e.currentTarget){
+                let child = tree.getElementsByClassName("child-list")[0];
+
+                if(child.style.visibility != "hidden"){
+                    child.style.visibility = "hidden"
+                    child.style.height = "0px"
+                    caret.innerHTML = "&#9656;&#9;"
+
+                }else{
+                    child.style.visibility = "visible"
+                    child.style.height = "initial"
+                    caret.innerHTML = "&#9662;&#9;"
+
+                }
+                e.stopPropagation()
+            }
+        }
+
+    });
+
+}
+function draw_static_game(game, engine){
+    let ctx = game.ctx;
+    
+    switch(game.state){
+        case GameState.Initialise:
+            let preMenu = game.preMenu;
+            ctx.fillStyle = "black"; 
+            ctx.fillRect(0,0,640,480);
+            ctx.drawImage(preMenu.pictureImage, preMenu.pictureImagePosition[0], preMenu.pictureImagePosition[1])
+            ctx.drawImage(preMenu.backgroundImage,0,0)
+            ctx.fillStyle = `rgba(0,0,0,${preMenu.fadeOut.alpha})`; 
+            ctx.fillRect(0,0,640,480);
+            break
+        case GameState.Play:
+            let world = game.world;
+            let player = world.player;
+            let camera = engine.camera
+            let clearArea = camera.clearArea;
+
+            ctx.clearRect(clearArea.x, clearArea.y, clearArea.sizex, clearArea.sizey)
+            ctx.setTransform(
+                1,0,
+                0,1,
+                0,0
+            );
+            ctx.translate(camera.origin[0], camera.origin[1]);
+            ctx.translate(-camera.position[0], -camera.position[1]);
+            ctx.rotate(-camera.angle);
+            ctx.translate(-camera.origin[0], -camera.origin[1]);
+            for(var i = 0; i < world.floors.length; i++){
+                let floor = world.floors[i];
+                let rect = floor.rect;
+                ctx.fillStyle = "purple";
+                ctx.fillRect(rect.x, rect.y, rect.sizex, rect.sizey)
+            }
+
+            for(var i = 0; i < world.circleRooms.length; i++){
+                let room = world.circleRooms[i];
+                let rect = room.rect;
+                let circle = room.circle;
+                ctx.fillStyle = "purple";
+                ctx.fillRect(rect.x, rect.y, rect.sizex, rect.sizey)
+                ctx.fillStyle = "orange";
+                ctx.beginPath();
+                ctx.arc(circle.position[0], circle.position[1], circle.radius, 0, 2 * Math.PI);
+                ctx.fill();
+
+            }
+
+            for(var i = 0; i < world.walls.length; i++){
+                let wall = world.walls[i];
+                let rect = wall.rect;
+                ctx.fillStyle = "green";
+                ctx.fillRect(rect.x, rect.y, rect.sizex, rect.sizey)
+            }
+
+            draw_player(player, ctx);
+            ctx.fillStyle = "lime";
+            ctx.beginPath();
+            ctx.arc(player.origin[0], player.origin[1], player.circle.radius, 0, 2 * Math.PI);
+            ctx.fill();
+            break;
+        case GameState.MainMenu:
+            ctx.fillStyle = "blue";
+            ctx.fillRect(0,0,640,480);
+            let buttons = [game.mainMenu.newGameButton, game.mainMenu.continueGameButton,
+            game.mainMenu.settingsButton];
+
+            buttons.forEach(b =>{
+                let area = b.area;
+                ctx.fillStyle = b.color;
+                ctx.beginPath();
+                ctx.arc(area.position[0], area.position[1], area.radius,0, 2 * Math.PI)
+                ctx.fill();
+            });
+
+            ctx.font = "16px Arial";
+            ctx.textAlign = "center"
+            ctx.fillStyle = "black"
+            buttons.forEach(b =>{
+                let area = b.area;
+
+                ctx.fillText( b.text, area.position[0], area.position[1]); 
+            });
+            break;
+    }
+    
+
+}
+function setPosition_moveTool(moveTool, position){
+    let deltaPosition = subtract_vector2(position,moveTool.position);
+    moveTool.position = add_vector2(moveTool.position, deltaPosition)
+    offset_rect(moveTool.xDragRect, deltaPosition);
+    offset_rect(moveTool.yDragRect, deltaPosition);
+
+}
+
+function setPosition_rotateTool(rotateTool, position){
+
+    let deltaPosition = subtract_vector2(position,rotateTool.position);
+    rotateTool.position = add_vector2(rotateTool.position, deltaPosition);
+    rotateTool.innerCircle.position = add_vector2(rotateTool.innerCircle.position, deltaPosition);
+    rotateTool.outerCircle.position = add_vector2(rotateTool.outerCircle.position, deltaPosition);
+}
+
+function setPosition_boxScaleTool(boxScaleTool, position){
+
+}
+
+function exportToLevel(game){
+
+    let downloadElement = document.createElement("a");
+    downloadElement.setAttribute('href',"data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(game.world)));
+    downloadElement.setAttribute('download', "disorientedLevel.json");
+    downloadElement.style.display = 'none';
+    document.body.appendChild(downloadElement);
+    downloadElement.click();
+    document.body.removeChild(downloadElement);
+
+}
+
+function transformFromRect_boxScaleTool(boxScaleTool, rect){
+    boxScaleTool.rect = {x: rect.x, y:rect.y, sizex: rect.sizex, sizey: rect.sizey }
+    let center = center_rect(boxScaleTool.rect);
+    let halfWidth = rect.sizex * 0.5
+    let halfHeight = rect.sizey * 0.5
+    boxScaleTool.leftPulley = {x: center[0] - halfWidth - 16, y: center[1] - 4, sizex: 8, sizey: 8}
+    boxScaleTool.rightPulley = {x: center[0] + halfWidth + 8, y: center[1] - 4, sizex: 8, sizey: 8}
+    boxScaleTool.bottomPulley = {x: center[0] - 4, y: center[1] + halfHeight + 16, sizex: 8, sizey: 8}
+    boxScaleTool.topPulley = {x: center[0] - 4, y: center[1] - halfHeight -16, sizex: 8, sizey: 8}
+}
+
+function transformFromCircle_circleScaleTool(circleScaleTool, circle){
+
+    let p = circle.position;
+    circleScaleTool.circle = {
+        position:[p[0], p[1]],
+        radius: circle.radius
+    };
+    circleScaleTool.radiusPulley = {x: p[0] + circle.radius + 8, y: p[1] -4, sizex: 8, sizey: 8}
+}
+
+
+function setPosition_scaleTool(scaleTool, position){
+    let deltaPosition = subtract_vector2(position,scaleTool.position);
+    scaleTool.position = add_vector2(scaleTool.position, deltaPosition);
+    offset_rect(scaleTool.xLine, deltaPosition);
+    offset_rect(scaleTool.yLine, deltaPosition);
+    offset_rect(scaleTool.xPulley, deltaPosition);
+    offset_rect(scaleTool.yPulley, deltaPosition);
+}
+
+
+function asRect_player(player){
+    let left  = player.origin[0] - 16;
+    let top = player.origin[1] - 32;
+    return {
+        x: left,
+        y: top,
+        sizex: 32,
+        sizey: 64
+    }
+}
+
+function selectEntityAndData(engine){
+    let worldCursor = engine.worldCursor;
+    let game = engine.game;
+    let mouseInput = engine.mouseInput;
+    let keyboardInput = engine.keyboardInput;
+    let selected = false;
+    if(containsPoint_rect(engine.toolData.moveTool.xDragRect, worldCursor.position)){
+        selected = true;
+    }
+    if(containsPoint_rect(engine.toolData.moveTool.yDragRect, worldCursor.position)){
+        selected = true;
+    }
+    if(containsPoint_rect(engine.toolData.circleScaleTool.radiusPulley, worldCursor.position)){
+        selected = true;
+    }
+
+    if(containsPoint_rect(engine.toolData.boxScaleTool.leftPulley, worldCursor.position)){
+        selected = true;
+    }
+    if(containsPoint_rect(engine.toolData.boxScaleTool.rightPulley, worldCursor.position)){
+        selected = true;
+    }
+    if(containsPoint_rect(engine.toolData.boxScaleTool.topPulley, worldCursor.position)){
+        selected = true;
+    }
+    if(containsPoint_rect(engine.toolData.boxScaleTool.bottomPulley, worldCursor.position)){
+        selected = true;
+    }
+    let playerRect = asRect_player(game.world.player);
+
+    if(containsPoint_rect(playerRect, worldCursor.position) && mouseInput.leftButton.state === MouseButtonState.Pressed && !selected){
+        engine.selectedEntity = SelectableEntity.PlayerSelected 
+        selected = true;
+    }
+
+    /**Select FLoors */
+    for(var i = 0; (i < game.world.floors.length) && !selected; i++){
+        let rect = game.world.floors[i].rect;
+        if(containsPoint_rect(rect, worldCursor.position) && mouseInput.leftButton.state === MouseButtonState.Pressed){
+            engine.selectedEntity = SelectableEntity.FloorSelected;
+            engine.selectedEntityIndex = i;
+            selected = true;
+        }
+    }
+    /** Select a wall */
+    for(var i = 0; (i < game.world.walls.length) && !selected; i++){
+        let rect = game.world.walls[i].rect;
+        if(containsPoint_rect(rect, worldCursor.position) && mouseInput.leftButton.state === MouseButtonState.Pressed){
+            engine.selectedEntity = SelectableEntity.WallSelected;
+            engine.selectedEntityIndex = i;
+            selected = true;
+        }
+    }
+    /**Select Circle Room */
+
+    for(var i = 0; (i < game.world.circleRooms.length) && !selected; i++){
+        let rect = game.world.circleRooms[i].rect;
+        let circle = game.world.circleRooms[i].circle;
+        if(containsPoint_circle(circle, worldCursor.position) && mouseInput.leftButton.state === MouseButtonState.Pressed && keyboardInput.ctrl.state === KeyState.Down){
+            engine.selectedEntity = SelectableEntity.CircleRoomSelected;
+            engine.selectedEntityIndex = i;
+            engine.selectedData = SelectableData.CircleSelected;
+            selected = true;
+        }
+        else if(containsPoint_rect(rect, worldCursor.position) && mouseInput.leftButton.state === MouseButtonState.Pressed && keyboardInput.ctrl.state === KeyState.Down){
+                engine.selectedEntity = SelectableEntity.CircleRoomSelected;
+                engine.selectedEntityIndex = i;
+                engine.selectedData = SelectableData.RectSelected;
+                selected = true;
+        }
+        else if((containsPoint_rect(rect, worldCursor.position) || containsPoint_circle(circle, worldCursor.position)) && mouseInput.leftButton.state === MouseButtonState.Pressed){
+            engine.selectedEntity = SelectableEntity.CircleRoomSelected;
+            engine.selectedEntityIndex = i;
+            engine.selectedData = SelectableData.NoneSelected;
+            selected = true;
+        }
+
+    }
+    
+
+}
+
+function setFloorProperties(engine, floor){
+    let rect = floor.rect;
+    engine.entityProperties.floorProperties.rectX.value = rect.x;
+    engine.entityProperties.floorProperties.rectY.value = rect.y;
+    engine.entityProperties.floorProperties.rectSizeX.value = rect.sizex;
+    engine.entityProperties.floorProperties.rectSizeY.value = rect.sizey;
+}
+
+function setWallProperties(engine, wall){
+    let rect = wall.rect;
+    engine.entityProperties.wallProperties.rectX.value = rect.x;
+    engine.entityProperties.wallProperties.rectY.value = rect.y;
+    engine.entityProperties.wallProperties.rectSizeX.value = rect.sizex;
+    engine.entityProperties.wallProperties.rectSizeY.value = rect.sizey;
+}
+
+function editMode(engine){
+    switch(game.state){
+        case GameState.Play:
+            playStateEditor(engine);
+            break;
+    }
+}
+
+function playStateEditor(engine){
+
+}
+function update_engine(engine,elapsed){
+    let game = engine.game;
+    let canvasCursor = engine.canvasCursor;
+    let worldCursor = engine.worldCursor;
+    let mouseInput = engine.mouseInput;
+    let keyboardInput = engine.keyboardInput;
+    {
+        canvas = engine.canvas
+        let bounds = canvas.getBoundingClientRect();
+        let pos = mouseInput.position;
+        canvasCursor.position = [pos[0] - bounds.x, pos[1] - bounds.y]
+    }
+    {
+        let ctx = game.ctx;
+        let transform = ctx.getTransform();
+        let matrix = [
+            [transform.a,transform.b,0],
+            [transform.c,transform.d,0],
+            [-transform.e,-transform.f,1]
+        ]
+        worldCursor.position = transform_mat3x3_vector2(matrix, engine.canvasCursor.position)
+        
+    }
+
+    switch(engine.state){
+        case EngineState.EditMode:
+                switch(game.state){
+                    case GameState.Play:
+                        playStateEditor(engine);
+                        let delta = mouseInput.deltaPosition;
+                        let camera = engine.camera;
+                        /** selectionSTage */
+                        selectEntityAndData(engine);
+                        
+                        
+                        
+                        switch(engine.tool){
+                            case EngineTool.RotateTool:
+                                let rotateTool = engine.toolData.rotateTool;
+                                
+                                switch(engine.selectedEntity){
+                                    case SelectableEntity.NoneSelected:
+                                        break;
+                                    case SelectableEntity.PlayerSelected:
+                                        let player = game.world.player;
+                                        setPosition_rotateTool(rotateTool, player.origin)
+                                        
+                                        switch(rotateTool.state){
+                                            case RotateToolState.NotRotating:
+                                                /**CHeck whether world corsor is between the two rotation circles */
+                                                let inrotator = containsPoint_circle(rotateTool.outerCircle, worldCursor.position) &&
+                                                    !containsPoint_circle(rotateTool.innerCircle, worldCursor.position) &&
+                                                    mouseInput.leftButton.state === MouseButtonState.Pressed;
+
+                                                if (inrotator){
+                                                    rotateTool.state = RotateToolState.Rotating
+                                                    rotateTool.startPoint = [worldCursor.position[0], worldCursor.position[1]];
+                                                    rotateTool.startAngle = player.angle;
+                                                }
+                                                break;
+                                            case RotateToolState.Rotating:
+                                                rotateTool.endPoint = [worldCursor.position[0], worldCursor.position[1]];
+                                                let dot = dot_vector2(rotateTool.startPoint, rotateTool.endPoint);
+                                                let magStart = length_vector2(rotateTool.startPoint);
+                                                let magEnd = length_vector2(rotateTool.endPoint);
+                                                let costheta = dot / (magStart * magEnd)
+                                                let theta = Math.acos(costheta);
+                                               
+
+
+                                                setAngle_player(player, rotateTool.startAngle + theta);
+
+                                                let toEndRotation = mouseInput.leftButton.state === MouseButtonState.UP;
+                                                if(toEndRotation){
+                                                    rotateTool.state = RotateToolState.NotRotating;
+                                                }
+
+
+                                                break;
+                                        }
+                                        
+                                        break;
+                                }
+                                break;
+                            case EngineTool.ScaleTool:
+                                let scaleTool = engine.toolData.scaleTool;
+                                let boxScaleTool = engine.toolData.boxScaleTool;
+                                let circleScaleTool = engine.toolData.circleScaleTool;
+                                let player = game.world.player;
+                                let boxReleaseTrigger = () =>{
+                                    if(mouseInput.leftButton.state === MouseButtonState.UP){
+                                        boxScaleTool.state = BoxScaleState.NotScaling
+                                    }   
+                                }
+                                let boxScaleTrigger = () =>{
+                                    if(containsPoint_rect(boxScaleTool.leftPulley, worldCursor.position) && mouseInput.leftButton.state === MouseButtonState.Down){
+                                        boxScaleTool.state = BoxScaleState.ScalingLeft
+                                    }else if(containsPoint_rect(boxScaleTool.rightPulley, worldCursor.position) && mouseInput.leftButton.state === MouseButtonState.Down){
+                                        boxScaleTool.state = BoxScaleState.ScalingRight
+
+                                    }else if(containsPoint_rect(boxScaleTool.bottomPulley, worldCursor.position) && mouseInput.leftButton.state === MouseButtonState.Down){
+                                        boxScaleTool.state = BoxScaleState.ScalingBottom
+
+                                    }else if(containsPoint_rect(boxScaleTool.topPulley, worldCursor.position) && mouseInput.leftButton.state === MouseButtonState.Down){
+                                        boxScaleTool.state = BoxScaleState.ScalingTop
+                                    }
+                                }
+                                let boxScaleLeft = (rect) =>{
+                                    rect.x += mouseInput.deltaPosition[0];
+                                    rect.sizex -= mouseInput.deltaPosition[0];
+                                    transformFromRect_boxScaleTool(boxScaleTool,rect);
+                                }
+                                let boxScaleRight = (rect) =>{
+                                    rect.sizex += mouseInput.deltaPosition[0];
+                                    transformFromRect_boxScaleTool(boxScaleTool,rect);
+                                }
+                                let boxScaleTop = (rect) =>{
+                                    rect.y += mouseInput.deltaPosition[1];
+                                    rect.sizey -= mouseInput.deltaPosition[1];
+                                    transformFromRect_boxScaleTool(boxScaleTool,rect);
+                                }
+                                let boxScaleBottom = (rect) =>{
+                                    rect.sizey += mouseInput.deltaPosition[1];
+                                    transformFromRect_boxScaleTool(boxScaleTool,rect);
+                                }
+                                let boxScale = (rect) =>{
+                                    switch(boxScaleTool.state){
+                                        case BoxScaleState.NotScaling:
+                                            boxScaleTrigger(rect);
+                                            break;
+                                        case BoxScaleState.ScalingLeft:
+                                            boxScaleLeft(rect);
+                                            boxReleaseTrigger();
+                                            break;
+                                        case BoxScaleState.ScalingRight:
+                                            boxScaleRight(rect);
+                                            boxReleaseTrigger();
+                                            break;
+                                        case BoxScaleState.ScalingTop:
+                                            boxScaleTop(rect)
+                                            boxReleaseTrigger();
+                                            break;
+                                        case BoxScaleState.ScalingBottom:
+                                            boxScaleBottom(rect)       
+                                            boxReleaseTrigger();
+                                            break;
+                                    }
+                                }
+
+                                let circleScale = (circle) =>{
+                                    switch(circleScaleTool.state){
+                                        case CircleScaleState.NotScaling:
+                                            if(containsPoint_rect(circleScaleTool.radiusPulley, worldCursor.position) && mouseInput.leftButton.state === MouseButtonState.Down){
+                                                circleScaleTool.state = CircleScaleState.RadiusScaling;
+                                            }
+                                            break;
+                                        case CircleScaleState.RadiusScaling:
+                                            circle.radius += mouseInput.deltaPosition[0];
+                                            circle.radius = Math.max(circle.radius, 1)
+
+                                            if(mouseInput.leftButton.state === MouseButtonState.UP){
+                                                circleScaleTool.state = CircleScaleState.NotScaling
+                                            }  
+                                            break;
+                                    }
+                                }
+                             
+                                switch(engine.selectedEntity){
+                                    case SelectableEntity.FloorSelected: 
+                                            {
+                                                let index = engine.selectedEntityIndex;
+                                                let floor = engine.game.world.floors[index];
+                                                transformFromRect_boxScaleTool(boxScaleTool, floor.rect);
+                                                let rect = floor.rect;
+                                                boxScale(rect);  
+                                                engine.entityProperties.floorProperties.rectX.value = rect.x;
+                                                engine.entityProperties.floorProperties.rectY.value = rect.y;
+                                                engine.entityProperties.floorProperties.rectSizeX.value = rect.sizex;
+                                                engine.entityProperties.floorProperties.rectSizeY.value = rect.sizey;
+                                                        
+                                                break;
+                                            }
+                                    case SelectableEntity.WallSelected:
+                                        {
+                                            let index = engine.selectedEntityIndex;
+                                            let wall = engine.game.world.walls[index];
+                                            transformFromRect_boxScaleTool(boxScaleTool, wall.rect);
+                                            let rect = wall.rect;
+                                            boxScale(rect);  
+                                            
+                                            break;
+                                        }
+                                    case SelectableEntity.PlayerSelected:
+                                        setPosition_scaleTool(scaleTool, player.origin);
+    
+                                        switch(scaleTool.state){
+                                            case ScaleToolState.NotScaling:
+                                                let toXScale = containsPoint_rect(scaleTool.xPulley, worldCursor.position) && mouseInput.leftButton.state === MouseButtonState.Pressed;
+                                                let toYScale = containsPoint_rect(scaleTool.yPulley, worldCursor.position) && mouseInput.leftButton.state === MouseButtonState.Pressed;
+                                                
+                                                if(toXScale){
+                                                    scaleTool.state = ScaleToolState.XScaling;
+                                                    scaleTool.startDrag = [worldCursor.position[0], worldCursor.position[1]]
+                                                    scaleTool.startScale = [player.circle.radius, player.circle.radius]
+                                                }else if(toYScale){
+                                                    scaleTool.state = ScaleToolState.YScaling;
+                                                    scaleTool.startDrag = [worldCursor.position[0], worldCursor.position[1]]
+                                                    scaleTool.startScale = [player.circle.radius, player.circle.radius]
+
+                                                }
+                                                break;
+                                            case ScaleToolState.XScaling:
+                                                let currentPosition = [worldCursor.position[0], worldCursor.position[0]];
+                                                let xScale = currentPosition[0] - scaleTool.startScale[0];
+                                                player.circle.radius = scaleTool.startScale[0] + xScale;
+                                                if(mouseInput.leftButton.state === MouseButtonState.UP){
+                                                    scaleTool.state = ScaleToolState.NotScaling;
+                                                }
+                                                break;
+                                            case ScaleToolState.YScaling:
+                                                if(mouseInput.leftButton.state === MouseButtonState.UP){
+                                                    scaleTool.state = ScaleToolState.NotScaling;
+                                                }
+
+                                                break;
+                                        }
+                                        break;
+                                    case SelectableEntity.CircleRoomSelected:
+                                        {
+                                        
+                                        let index = engine.selectedEntityIndex;
+                                        let room = engine.game.world.circleRooms[index];
+                                        let rect = room.rect;
+                                        let circle = room.circle;
+                                        
+                                        switch(engine.selectedData){
+                                            case SelectableData.NoneSelected:
+                                                break;
+                                            case SelectableData.CircleSelected:
+                                                transformFromCircle_circleScaleTool(circleScaleTool, circle);
+                                                circleScale(circle);
+                                                transformFromCircle_circleScaleTool(circleScaleTool, circle);
+
+                                                break;
+                                            case SelectableData.RectSelected:
+                                            {    
+                                                transformFromRect_boxScaleTool(boxScaleTool,rect);
+                                                boxScale(rect);                       
+                                                break;
+                                            }   
+                                            
+                                        }
+                                        break;
+                                    }
+                                }
+                                break;
+                            case EngineTool.PanTool:
+                                let pannable = mouseInput.leftButton.state === MouseButtonState.Down &&
+                                mouseInput.overCanvas;
+                                if(pannable){
+                                    camera.position = add_vector2(camera.position, delta)
+                                    camera.clearArea.x += delta[0];
+                                    camera.clearArea.y += delta[1];
+                                }
+                                break;
+                            case EngineTool.MoveTool:
+                                let moveTool = engine.toolData.moveTool;
+
+                                let dragTrigger = () =>{
+                                    if(containsPoint_rect(moveTool.xDragRect, worldCursor.position) && mouseInput.leftButton.state === MouseButtonState.Down){
+                                        moveTool.state = MoveToolState.DraggingX;
+            
+                                    }else if(containsPoint_rect(moveTool.yDragRect, worldCursor.position) && mouseInput.leftButton.state === MouseButtonState.Down){
+                                        moveTool.state = MoveToolState.DraggingY;
+                                    }
+                                }
+                                let moveReleaseTrigger = () =>{
+                                    if(mouseInput.leftButton.state === MouseButtonState.UP){
+                                        moveTool.state = MoveToolState.NotDragging
+                                    }   
+                                }
+                                let moveToolRect = (rect) =>{
+                                    switch(moveTool.state){
+                                        case MoveToolState.NotDragging:
+                                            dragTrigger();
+                                            break;
+                                        case MoveToolState.DraggingX:
+                                            let deltax = mouseInput.deltaPosition[0];
+                                            rect.x += deltax;
+                                            if(mouseInput.leftButton.state === MouseButtonState.UP){
+                                                moveTool.state = MoveToolState.NotDragging
+                                            }
+                                            break;
+                                        case MoveToolState.DraggingY:
+                                            let deltay = mouseInput.deltaPosition[1];
+                                            rect.y += deltay;
+                                            if(mouseInput.leftButton.state === MouseButtonState.UP){
+                                                moveTool.state = MoveToolState.NotDragging
+                                            }
+                                            break;
+                                    }
+                                }
+                                let moveToolCircle = (circle) =>{
+                                    switch(moveTool.state){
+                                        case MoveToolState.NotDragging:
+                                            dragTrigger();
+                                            break;
+                                        case MoveToolState.DraggingX:
+                                            let deltax = [mouseInput.deltaPosition[0],0];
+                                            offset_circle(circle, deltax);
+                                            moveReleaseTrigger();
+                                            break;
+                                        case MoveToolState.DraggingY:
+                                            let deltay = [0,mouseInput.deltaPosition[1]];
+                                            offset_circle(circle, deltay);
+                                            moveReleaseTrigger();
+                                            break;
+                                    }
+                                    
+                                }
+                                switch(engine.selectedEntity){
+                                    case SelectableEntity.PlayerSelected:
+                                        let player = game.world.player;
+                                        setPosition_moveTool(moveTool, player.origin);
+                                        switch(moveTool.state){
+                                            case MoveToolState.NotDragging:
+                                                dragTrigger();
+                                                break;
+                                            case MoveToolState.DraggingX:
+                                                let deltax = mouseInput.deltaPosition[0];
+                                        
+                                                move_player(player, [deltax, 0]);
+                                                moveReleaseTrigger()                                     
+                                                setPosition_moveTool(moveTool, player.origin);
+                                                break;
+                                            case MoveToolState.DraggingY:
+                                                let deltay = mouseInput.deltaPosition[1];
+                                                move_player(player, [0, deltay]);
+                                                moveReleaseTrigger()
+                                                setPosition_moveTool(moveTool, player.origin);
+                                                break;    
+                                        }
+                                    
+                                        break;
+                                    case SelectableEntity.FloorSelected:
+                                    {
+                                        let index = engine.selectedEntityIndex;
+                                        let floor = engine.game.world.floors[index];
+                                        setPosition_moveTool(moveTool, center_rect(floor.rect));
+                                        moveToolRect(floor.rect);
+                                        setFloorProperties(engine, floor);
+                                        setPosition_moveTool(moveTool, center_rect(floor.rect));
+
+                                        
+                                    }                                     
+                                        break;
+                                    case SelectableEntity.WallSelected:
+                                        let index = engine.selectedEntityIndex;
+                                        let wall = engine.game.world.walls[index];
+                                        setPosition_moveTool(moveTool, center_rect(wall.rect));
+                                        moveToolRect(wall.rect);
+                                        setWallProperties(engine, wall);
+                                        break;
+                                    case SelectableEntity.CircleRoomSelected:
+                                        {
+                                            let index = engine.selectedEntityIndex;
+                                            let room = engine.game.world.circleRooms[index];
+                                            let rect = room.rect;
+                                            let circle = room.circle;
+
+                                            switch(engine.selectedData){
+                                                case SelectableData.NoneSelected:
+                                                    setPosition_moveTool(moveTool, circle.position);
+
+                                                    switch(moveTool.state){
+                                                        case MoveToolState.NotDragging:
+                                                            dragTrigger();
+                                                            break;
+                                                        case MoveToolState.DraggingX:
+                                                            let deltax = [mouseInput.deltaPosition[0],0];
+                                                            offset_rect(rect, deltax);
+                                                            offset_circle(circle, deltax)
+                                                            moveReleaseTrigger();
+                                                            break;
+                                                        case MoveToolState.DraggingY:
+                                                            let deltay = [0,mouseInput.deltaPosition[1]];
+                                                            offset_rect(rect, deltay);
+                                                            offset_circle(circle, deltay)
+                                                            moveReleaseTrigger();
+                                                            break;
+                                                    }
+                                                    break;
+                                                case SelectableData.RectSelected:
+                                                    setPosition_moveTool(moveTool, center_rect(rect));
+                                                    moveToolRect(rect)
+                                                    break;
+                                                case SelectableData.CircleSelected:
+                                                    setPosition_moveTool(moveTool, circle.position);
+                                                    moveToolCircle(circle);
+                                                    
+                                                    break;
+                                            }
+                                        }
+                                        break;
+                                        
+                                }
+                    }    
+                    break;
+
+                }
+                
+                draw_static_game(game, engine);
+                /** Drawing debug objects */
+                let ctx = game.ctx;
+                /**Draw the move Tool */
+                let playerRect = asRect_player(game.world.player);
+                ctx.fillStyle = "orange";
+                ctx.beginPath();
+                ctx.arc(worldCursor.position[0], worldCursor.position[1], 5,0, 2 * Math.PI)
+                ctx.fill()
+                {
+                    let moveTool = engine.toolData.moveTool;
+                    if(engine.tool === EngineTool.MoveTool && EngineTool.selectedEntity !==  SelectableEntity.NoneSelected){
+                        let yDragRect = moveTool.yDragRect
+                        ctx.fillStyle = "green"
+                        ctx.fillRect(yDragRect.x, yDragRect.y, yDragRect.sizex, yDragRect.sizey);
+                        ctx.fillStyle = "red"
+                        let xDragRect = moveTool.xDragRect
+                        ctx.fillRect(xDragRect.x, xDragRect.y, xDragRect.sizex, xDragRect.sizey);
+                    }
+                    
+
+                    
+                }
+
+                {
+                    let rotateTool = engine.toolData.rotateTool;
+                    let innerCircle = rotateTool.innerCircle;
+                    let outercircle = rotateTool.outerCircle;
+                    if(rotateTool.selectedEntity !== SelectableEntity.NoneSelected){
+                        ctx.strokeStyle = "blue";
+                        ctx.beginPath();
+                        let deltaRad = (outercircle.radius - innerCircle.radius)* 0.5
+                        ctx.lineWidth = deltaRad;
+                        ctx.arc(innerCircle.position[0] , innerCircle.position[1], innerCircle.radius + deltaRad, 0, 2 * Math.PI)
+                        ctx.stroke();
+                        
+                        ctx.lineWidth = 1;
+
+                        ctx.beginPath();
+                        ctx.strokeStyle = "green";
+                        ctx.arc(innerCircle.position[0], innerCircle.position[1], innerCircle.radius, 0, 2 * Math.PI);
+                        ctx.stroke();
+
+                        ctx.beginPath();
+                        ctx.strokeStyle = "red";
+                        ctx.arc(outercircle.position[0], outercircle.position[1], outercircle.radius, 0, 2 * Math.PI);
+                        ctx.stroke();
+
+                    }
+                }
+                
+                {
+                    let boxScaleTool= engine.toolData.boxScaleTool;
+                    if(engine.tool === EngineTool.ScaleTool){
+                        let rect = boxScaleTool.rect;
+                        let leftPulley = boxScaleTool.leftPulley;
+                        let rightPulley = boxScaleTool.rightPulley;
+                        let topPulley = boxScaleTool.topPulley;
+                        let bottomPulley = boxScaleTool.bottomPulley;
+                        ctx.strokeStyle = "blue";
+                        ctx.strokeRect(rect.x, rect.y, rect.sizex, rect.sizey)
+
+                        ctx.fillStyle = "blue";
+                        ctx.fillRect(leftPulley.x, leftPulley.y, leftPulley.sizex, leftPulley.sizey);
+                        ctx.fillRect(rightPulley.x, rightPulley.y, rightPulley.sizex, rightPulley.sizey);
+                        ctx.fillRect(bottomPulley.x, bottomPulley.y, bottomPulley.sizex, bottomPulley.sizey);
+                        ctx.fillRect(topPulley.x, topPulley.y, topPulley.sizex, topPulley.sizey);
+
+                    }
+                    
+                }
+                {
+                    let circleScaleTool = engine.toolData.circleScaleTool;
+                    let circle = circleScaleTool.circle;
+                    let pulley = circleScaleTool.radiusPulley;
+                    ctx.strokeStyle = "red";
+                    ctx.beginPath();
+                    ctx.arc(circle.position[0], circle.position[1], circle.radius, 0, 2 * Math.PI);
+                    ctx.stroke();
+
+                    ctx.fillStyle = "green";
+                    ctx.fillRect(pulley.x, pulley.y, pulley.sizex, pulley.sizey);
+                }
+
+                if(containsPoint_rect(playerRect, worldCursor.position)){
+                    ctx.strokeStyle = "red";
+                    ctx.strokeRect(playerRect.x, playerRect.y, playerRect.sizex, playerRect.sizey)
+                }
+
+                /** Draw grid if aplicable */
+                if(engine.guides.grid.active){
+                    ctx.strokeStyle = "black"
+                    ctx.beginPath();
+                    for(var i =0; i <=640; i+=32){
+                        ctx.moveTo(i, 0);
+                        ctx.lineTo(i, 480);    
+                    }
+                    for(var i = 0; i <=420; i+=32){
+                        ctx.moveTo(0, i);
+                        ctx.lineTo(640, i); 
+                    }
+                    ctx.stroke();
+                }
+            break;
+    }
+    update_mouseInput(engine.mouseInput)
+    update_keyboardInput(engine.keyboardInput);
+
+}
+
+
+function main(){
+    var canvas = document.getElementById("canvas");
+    var ctx = canvas.getContext("2d");
+    let keyboardInput = new KeyboardInput();
+    let mouseInput = new MouseInput();
+    addListeners_keyboardInput(keyboardInput);
+    addListeners_mouseInput(mouseInput, canvas);
+    var game = new Game(keyboardInput, mouseInput, ctx, canvas);
+    var engine = new Engine(game, canvas, ctx);
+    treeViewSetup(engine);
+    entityPropertiesSetup(engine);
+    engine.toolButtons.moveTool.onclick = e =>{
+        engine.tool = EngineTool.MoveTool;
+    }
+    engine.toolButtons.panTool.onclick = e =>{
+        engine.tool = EngineTool.PanTool;
+    }
+    engine.toolButtons.rotateTool.onclick = e =>{
+        engine.tool = EngineTool.RotateTool;
+    }
+
+    engine.toolButtons.scaleTool.onclick = e =>{
+        engine.tool = EngineTool.ScaleTool;
+    }
+
+    engine.exportButton.onclick = e =>{
+        exportToLevel(engine.game);
+    }
+    engine.entityTree.mainMenu.addEventListener ("click" ,e =>{
+        game.state = GameState.MainMenu;
+    
+    })
+
+    engine.entityTree.world.addEventListener ("click",e =>{
+        game.state = GameState.Play;
+    })
+
+    engine.entityTree.preMenu.addEventListener("click" ,e =>{
+        game.state = GameState.Initialise;
+    });
+    
+    /**Propterties Panel Events */
+    let clearPropertiesPanel = () =>{
+        while(engine.entityProperties.container.childElementCount != 0){
+            engine.entityProperties.container.removeChild(engine.entityProperties.container.childNodes[0])
+        }
+    }
+    engine.entityTree.player.addEventListener("click", e =>{    
+        clearPropertiesPanel();
+        engine.entityProperties.container.appendChild(engine.entityProperties.playerProperties.panel)
+        engine.selectedEntity = SelectableEntity.PlayerSelected;
+    });
+
+    //on add floor
+    engine.addAssetButton.floor.onclick = e=>{
+        let floorRect = {x: 0, y:0, sizex:32, sizey: 32}     
+
+        let position = add_vector2(engine.camera.position, engine.camera.origin);
+        floorRect.x = position[0];
+        floorRect.y = position[1];
+        engine.game.world.floors.push({rect: floorRect});
+
+        while(engine.floorList.childElementCount != 0){
+            engine.floorList.removeChild(engine.floorList.childNodes[0]); 
+        }
+        let floors = engine.game.world.floors
+        for(var i = 0; i < floors.length; i++){
+            let label = document.createElement("li");
+            label.innerHTML = "#" + i;
+            label.name =  i.toString();
+            label.addEventListener("click" , e =>{
+                engine.selectedEntity = SelectableEntity.FloorSelected;
+                engine.selectedEntityIndex = parseInt(label.name);
+                clearPropertiesPanel();
+                engine.entityProperties.container.appendChild(engine.entityProperties.floorProperties.panel)
+                setFloorProperties(engine, floors[i]);
+
+            });
+            engine.floorList.appendChild(
+                label
+            )
+        }
+    }
+
+    //on add wall
+    engine.addAssetButton.wall.onclick = e =>{
+        let wall = {
+            rect: {x: 0, y:0, sizex:32, sizey: 32}     
+        }
+        let position = add_vector2(engine.camera.position, engine.camera.origin);
+        wall.rect.x = position[0];
+        wall.rect.y = position[1];
+        engine.game.world.walls.push(wall);
+
+        while(engine.wallList.childElementCount != 0){
+            engine.wallList.removeChild(engine.wallList.childNodes[0]); 
+        }
+        let walls = engine.game.world.walls
+        for(var i = 0; i < walls.length; i++){
+            let label = document.createElement("li");
+            label.innerHTML = "#" + i;
+            label.name =  i.toString();
+            label.addEventListener("click" , e =>{
+                engine.selectedEntity = SelectableEntity.WallSelected;
+                engine.selectedEntityIndex =  parseInt(label.name);
+                clearPropertiesPanel();
+                engine.entityProperties.container.appendChild(engine.entityProperties.wallProperties.panel)
+                setWallProperties(engine, walls[i]);
+            });
+            engine.wallList.appendChild(
+                label
+            )
+        }
+
+    }
+
+    //add circleRoom
+    engine.addAssetButton.circleRoom.onclick = e =>{
+        let rect = {x:0, y: 0, sizex: 64, sizey: 64}
+        let circle = {position:[32,32], radius: 16}
+        let target = add_vector2(engine.camera.position, engine.camera.origin);
+
+        rect.x += target[0];
+        rect.y += target[1];
+        circle.position = add_vector2(circle.position, target);
+        let circleRoom = {rect: rect, circle: circle};
+        engine.game.world.circleRooms.push(circleRoom);
+        while (engine.circleRoomList.childElementCount != 0 ){
+            engine.circleRoomList.removeChild(engine.circleRoomList.childNodes[0]);
+        }
+        let circleRooms = engine.game.world.circleRooms;
+        for(var i = 0; i < circleRooms.length; i++){
+            let label = document.createElement("li");
+            label.innerHTML = "#" + i;
+            label.name = i.toString();
+            label.addEventListener("click" , e =>{
+                engine.selectedEntity = SelectableEntity.CircleRoomSelected;
+                engine.selectedEntityIndex = parseInt(label.name);
+                clearPropertiesPanel();
+                engine.entityProperties.container.appendChild(engine.entityProperties.circleroomProperties.panel)
+
+            });
+            engine.circleRoomList.appendChild(
+                label
+            )
+        }
+        
+    }
+   
+    game.state = GameState.MainMenu
+    init_preMenu(game.preMenu);
+    var elapsed = 1.0/60.0;
+    var time = 0;
+
+    var update = timestamp =>{
+        update_engine(engine, elapsed);
+        elapsed = (timestamp - time) * 0.001;
+        time = timestamp;
+        requestAnimationFrame(update)
+    }
+    requestAnimationFrame(update)
+
+}
+
+main();
+

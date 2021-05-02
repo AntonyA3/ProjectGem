@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="description" content="Disoriented City Game Engine">
+        <meta name="author" content="AntonyA3">
+        <meta name="author-email" content="antonya3@protonmail.com">
+        <link rel="stylesheet" href="engine.css">
+    </head>
+    <body>
+        <div id="engine-panel0">
+            <div id="engine-panel1">
+                <div id="canvas-panel">
+                    <canvas id="canvas" width="640" height="480"></canvas>
+
+                </div>
+                <div id="side-panel">
+                    <div id="game-tree-panel">
+                        <div class="title-panel">
+                            Entities
+                        </div>    
+                        <div id="entity-tree">
+                            <ul class="entity-list">
+
+                                 <li class="parent-list"><span class="caret">&#9662;&#9;</span>Game
+                                    <ul class="child-list">
+                                        <li id="pre-menu-tree" class="parent-list"><span class="caret">&#9662;&#9;</span>PreMenu
+                                            <ul class="child-list">
+                                                <li class="entity-label"> Picture Image</li>
+                                            </ul>
+                                        </li>
+                                        <li id="main-menu-tree" class="parent-list"><span class="caret">&#9662;&#9;</span>MainMenu
+                                            <ul class="child-list">
+                                                <li class="entity-label">Play Button</li>
+                                            </ul>
+                                        </li>
+                                        <li id="world-tree" class="parent-list"><span class="caret">&#9662;&#9;</span>World
+                                            <ul class="child-list">
+                                                <li id="player-label" class="entity-label">Player</li>
+                                                <li class="parent-list"><span class="caret">&#9662;&#9;</span>Floors <input id="floor-color" type="color" value="red">
+                                                    <ul id="floor-label-list" class="child-list">
+                                                    </ul>
+                                                </li>
+                                                <li class="parent-list"><span class="caret">&#9662;&#9;</span>CircleRooms <input id="circleRoom-color" type="color" value="purple"><input type="color" value="red">
+                                                    <ul id="circleroom-label-list" class="child-list">
+                                                    </ul>
+                                                </li>
+                                                <li class="parent-list"><span class="caret">&#9662;&#9;</span>Walls <input id="wall-color" type="color" value="red">
+                                                    <ul id="wall-label-list" class="child-list">
+                                                    </ul>
+                                                </li>
+                                            </ul>
+                                        </li>
+                                    </ul>
+
+                                </ul>
+                         </li>
+
+                            
+                        </div>    
+                    </div>
+                    <div id="properties-panel">
+                        <div class="title-panel">
+                            Properties
+                        </div>
+                        <div id="property-editor-container">
+                        </div>
+                    </div> 
+                    
+                </div>
+                <div id="toolbar">
+                    <div class="title-panel">
+                        toolbar
+                    </div>
+                    <table>
+                        <tr> 
+                            <td><button id=export-button>Export</button></td>  
+                            <td><button id=save-button>Save</button></td>  
+                            <td><button id=load-button>Load</button></td>  
+
+
+                        </tr>
+                        <tr>
+                            <td><button id="pan-tool-button">Pan Tool</button></td>
+                            <td><button id="move-tool-button">Move Tool</button></td>
+                        </tr>
+                        <tr>
+                            <td><button id="rotate-tool-button">Rotate Tool</button></td>
+                            <td><button id="scale-tool-button">Scale Tool</button></td> 
+                        </tr>
+                    </table>
+                </div>
+            </div>
+            <div id="asset-panel">
+                <div class="title-panel">
+                    Asset
+                </div>
+                <div>
+                    <button id="add-wall-button">
+                        <svg width="100" height="100" draggable="true">   
+                            <rect x="0" y="0" width="100" height="100" style="position:absolue;fill:rgb(0,0,255);stroke-width:3;"/>
+                            <rect x="0" y="0" width="3" height="20" style="position:absolue;fill:rgb(255,0,0);stroke-width:3;"/>
+                            <rect x="0" y="0" width="20" height="3" style="position:absolue;fill:rgb(255,0,0);stroke-width:3;"/>
+                        </svg><br/>
+                        Wall
+                    </button>
+                    <button id="add-floor-button">
+                        <svg width="100" height="100" draggable="true">   
+                            <rect x="0" y="0" width="100" height="100" style="position:absolue;fill:rgb(0,0,255);stroke-width:3;"/>
+                            <rect x="0" y="0" width="3" height="20" style="position:absolue;fill:rgb(255,0,0);stroke-width:3;"/>
+                            <rect x="0" y="0" width="20" height="3" style="position:absolue;fill:rgb(255,0,0);stroke-width:3;"/>
+
+                        </svg><br/>
+                        Floor
+                    </button>
+                    <button>
+                        <svg width="100" height="100" draggable="true">   
+                            <rect x="0" y="0" width="100" height="100" style="position:absolue;fill:rgb(0,0,255);stroke-width:3;"/>
+                            <rect x="0" y="0" width="3" height="20" style="position:absolue;fill:rgb(255,0,0);stroke-width:3;"/>
+                            <rect x="0" y="0" width="20" height="3" style="position:absolue;fill:rgb(255,0,0);stroke-width:3;"/>
+
+                        </svg><br/>
+                        Rect Collider
+                    </button>
+                    <button id="add-circleroom-button">
+                        <svg width="100" height="100" draggable="true">   
+                            <rect x="0" y="0" width="100" height="100" style="position:absolue;fill:rgb(0,0,255);stroke-width:3;"/>
+                            <rect x="0" y="0" width="3" height="20" style="position:absolue;fill:rgb(255,0,0);stroke-width:3;"/>
+                            <rect x="0" y="0" width="20" height="3" style="position:absolue;fill:rgb(255,0,0);stroke-width:3;"/>
+                            <circle cx="50" cy="50" r="40" stroke="green" stroke-width="4" fill="yellow" />
+                        </svg><br/>
+                        CircleRoom
+                    </button>
+                    
+                    <svg width="100" height="100" draggable="true">
+                    </svg>
+                    <label style="background-color: aqua;" draggable="true" id="drag-on-floor">Floor</label>
+                    <label style="background-color: aqua;" draggable="true" id="drag-on-circleroom">Circle Room</label>
+
+                </div>
+            </div>
+        </div>
+        <script src="game.js"></script>
+        <script src="engine.js"></script>
+    </body>
+</html>

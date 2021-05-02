@@ -1,0 +1,95 @@
+
+canvas{
+    border: solid black 1px;
+}
+
+#canvas-panel{
+    float: left;
+    width: 640px;
+    height: 480px;
+    background-color: white;
+}
+
+div.title-panel{
+    background-color: turquoise;
+}
+
+#side-panel{
+    float: left;
+    border: solid black 1px;
+    background-color: red; 
+    width: 340px;
+    height: 480px;
+    margin-left: 10px;
+}
+
+#game-tree-panel{
+    width: 100%;
+    min-height: 50%;
+    max-height: 50%;
+    border: solid green 1px; 
+    
+}
+#toolbar{
+    width: 20%;
+    float: left;
+    background-color: yellow;
+}
+#properties-panel{
+    width: 100%;
+    height: 50%;
+
+}
+
+#engine-panel1{
+    background-color: tomato;
+    border: solid black 1px;
+    width: auto;
+    min-height: 480px;
+    height: auto;
+
+}
+#engine-panel0{
+    background-color: saddlebrown;
+
+}
+
+#asset-panel{
+    float: bottom;
+    background-color: yellowgreen;
+    height: 128px;
+    margin: 10px;
+}
+
+#entity-tree{
+    
+    background-color: violet;
+    min-width: 100%;
+    overflow-y: scroll;
+    max-height: 220px;
+
+}
+
+ul.tree-inactive{
+    height: 0px;
+    visibility: hidden;
+}
+
+ul.tree-active{
+    visibility: visible;
+}
+
+ul.parent-list{
+    list-style: none;
+}
+
+ul.entity-list{
+    list-style: none;
+}
+ul.child-list{
+    list-style: none;
+}
+
+li.entity-label:hover{
+    background-color: turquoise;
+}

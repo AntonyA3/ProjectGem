@@ -1,0 +1,855 @@
+
+
+const KeyState = {
+    Pressed: 0,
+    Down: 1,
+    Released: 2,
+    UP: 3
+}
+
+const MouseButtonState = {
+    Pressed: 0,
+    Down: 1,
+    Released: 2,
+    UP: 3
+}
+
+const GameState = {
+    Initialise: 0,
+    MainMenu: 1,
+    Play: 2,
+    Loading: 3
+}
+
+const PreMenuState ={
+    Closed: 0,
+    Opening: 1,
+    Opened: 2
+
+}
+
+const MainMenuState ={
+    Begin: 0,
+    Selecting: 1,
+    Ending: 2,
+    Ended: 3
+}
+const TransitionState ={
+    InActive: 0,
+    Active:1, 
+    Complete: 2
+}
+
+const MainMenuButtonState = {
+    None: 0,
+    Hovered: 1,
+    Pressed: 2
+
+}
+
+const CameraState = {
+    Fixed: 0,
+    Targeted: 1,
+    HardSet: 2
+}
+
+const PlayerState = {
+    Falling: 0,
+    Walking: 1,
+    Jumping: 2,
+}
+
+const CameraTargetId ={
+    PlayerOrigin: 0,
+    AnyPosition:1
+}
+function KeyboardInput(){
+    this.up = {key: "w", state: KeyState.UP},
+    this.left = {key: "a", state: KeyState.UP},
+    this.down = {key: "s", state: KeyState.UP},
+    this.right = {key: "d", state: KeyState.UP},
+    this.ctrl = {key: "control", state: KeyState.UP}
+    this.action0 = {key: "escape", state: KeyState.UP},
+    this.action1 = {key: "j", state: KeyState.UP},
+    this.action2 = {key: "k", state: KeyState.UP},
+    this.action3 = {key: "l", state: KeyState.UP}
+}
+
+function MouseInput(){
+    this.leftButton = {id: 0, state: MouseButtonState.UP},
+    this.rightButton = {id: 2, state: MouseButtonState.UP},
+    this.position = [NaN, NaN],
+    this.deltaPosition = [0,0]
+    this.overCanvas = false
+}
+
+
+function Game(keyboardInput, mouseInput, graphicsContext, canvas){
+    this.canvas = canvas,
+    this.ctx = graphicsContext,
+    this.keyboardInput = keyboardInput,
+    this.mouseInput = mouseInput,
+    this.canvasCursor ={
+        position: [NaN, NaN]
+    },
+    this.preMenu ={
+        backgroundImage: null,
+        pictureImage: null,
+        pictureImagePosition: [128, 128],
+        pictureImageTime: 0,
+        state: PreMenuState.Closed,
+        fadeOut:{
+            state:TransitionState.InActive,
+            alpha: 0.0
+        }
+    },
+    this.world ={
+        camera:{
+            bounds:{
+                x: 0,
+                y: 0,
+                sizex: 640,
+                sizey: 480
+            },
+            origin: [640 * 0.5, 480 * 0.5],
+            position:[0,0],
+            angle: 0,
+            state: CameraState.Fixed,
+            targetId: CameraTargetId.PlayerOrigin,
+            boundTarget:[0.5, 2/3.0]
+        },
+        player:{
+            origin:[0,0],
+            baseRect: {
+                x: -16,
+                y: 0,
+                sizex: 32,
+                sizey:32
+            },
+            midRect:{
+                x: -8, 
+                y: -32,
+                sizex: 16,
+                sizey: 64
+            },
+  
+     
+            circle: {
+                position: [0,0],
+                radius: 10
+            },
+            angle: 0,
+            bottomPoint:[0,32],
+
+            linearMovement:{
+                yVector: [0,1],
+                ySpeed: 0,
+                yAcceleration: 1000,
+                yDrag: 0,
+                yMaxSpeed: 50,
+                xFriction: 1.0,
+
+                xVector: [1,0],
+                xAcceleration: 1000,
+                xMaxSpeed: 10,
+                xSpeed: 0,
+
+                velocity: [0,0]
+            },
+            state: PlayerState.Falling,
+        },
+        floors: [],
+        walls: [],
+        circleRooms: [ ]
+    }
+    ,
+    this.mainMenu ={
+        fade:{
+            state:TransitionState.InActive,
+            alpha: 1.0,
+            isFadeIn: true
+        },
+        newGameButton:{
+            text: "New Game",
+            area: {
+                position:[100,100],
+                radius: 64
+            },
+            color: "orange",
+            state: MainMenuButtonState.None
+        },
+        continueGameButton:{
+            text: "Continue",
+            area: {
+                position: [200,200],
+                radius: 64
+            },
+            active: false,
+            color: "orange",
+            state: MainMenuButtonState.None
+        },
+        settingsButton:{
+            text: "Settings",
+            area: {
+                position: [300,300],
+                radius: 64
+            },
+            color: "orange",
+            state: MainMenuButtonState.None
+        },
+        audioSettingButton:{
+            text: "Audio",
+            area: {
+                position: [200,200],
+                radius: 64
+            },
+            color: "orange",
+            state: MainMenuButtonState.None
+        },
+        controlSettingsButton:{
+            text: "Controls",
+            area: {
+                position: [300,300],
+                radius: 64
+            },
+            color: "orange",
+            state: MainMenuButtonState.None
+        },
+        state: MainMenuState.Begin
+    },
+    this.state = GameState.Initialise
+}
+
+function subtract_vector2(vector0, vector1){
+    return [
+        vector0[0] - vector1[0], 
+        vector0[1] - vector1[1]
+    ];
+}
+function lengthSquared_vector2(vector){
+    return vector[0] * vector[0] + vector[1] * vector[1];
+}
+
+function length_vector2(vector){
+    return Math.sqrt(lengthSquared_vector2(vector));
+}
+
+function transform_mat3x3_vector2(m, v){
+    let x = m[0][0] * v[0] + m[1][0] * v[1]+ m[2][0];
+    let y = m[0][1] * v[0] + m[1][1] * v[1] + m[2][1];
+    return [x, y]
+}
+
+function scale_vector2(vector, scale){
+    return [
+        vector[0] * scale,
+        vector[1] * scale
+    ];
+}
+
+function dot_vector2(vector0, vector1){
+    return vector0[0] * vector1[0] + vector0[1] * vector1[1];
+}
+
+function add_vector2(vector0, vector1){
+    return [
+        vector0[0] + vector1[0], 
+        vector0[1] + vector1[1]
+    ];
+}
+function containsPoint_circle(circle, point){
+    let position = circle.position;
+    let radius = circle.radius;
+    let v = subtract_vector2(position, point);
+    v = lengthSquared_vector2(v);
+    return v <= radius * radius;
+
+}
+
+function center_rect(rect){
+    return [rect.x + 0.5 * rect.sizex, rect.y + 0.5 * rect.sizey];
+}
+
+function intersect_rects(rect0, rect1){
+    let centerRect0 = center_rect(rect0);
+    let centerRect1 = center_rect(rect1);
+
+    if(Math.abs(centerRect0[0] - centerRect1[0]) > 0.5*(rect0.sizex + rect1.sizex)) return false;
+    if(Math.abs(centerRect0[1] - centerRect1[1]) > 0.5*(rect0.sizey + rect1.sizey)) return false;
+    
+    return true
+}
+function addListeners_keyboardInput(keyboardInput){
+    let keys = [
+        keyboardInput.up, keyboardInput.left,
+        keyboardInput.right, keyboardInput.down,
+        keyboardInput.action0, keyboardInput.action1,
+        keyboardInput.action2, keyboardInput.action3,
+        keyboardInput.ctrl
+    ];
+
+    document.addEventListener("keydown", e =>{
+        keys.forEach(k =>{
+            if(e.key.toLowerCase() == k.key.toLowerCase()){
+                
+                let state = k.state;
+                if(state === KeyState.Pressed || state === KeyState.Down){
+                    k.state = KeyState.Down;
+                }else{
+                    k.state = KeyState.Pressed;
+                }
+            }
+        })
+
+    });
+
+    document.addEventListener("keyup", e=>{
+        keys.forEach(k =>{
+            if(e.key.toLowerCase() == k.key.toLowerCase()){
+                let state = k.state;
+                if(state === KeyState.Released || state === KeyState.UP){
+                    k.state = KeyState.UP;
+                }else{
+                    k.state = KeyState.Released;
+                }
+            }
+        })
+    });
+}
+
+function addListeners_mouseInput(mouseInput, canvas){
+    let mouseButtons = [
+        mouseInput.leftButton, mouseInput.rightButton
+    ];
+    document.addEventListener("mousedown", e=>{
+        mouseButtons.forEach(b =>{
+            if (e.button === b.id){
+                if(b.state === MouseButtonState.Pressed || b.state == MouseButtonState.Down){
+                    b.state = MouseButtonState.Down;
+                }else{
+                    b.state = MouseButtonState.Pressed;
+                }
+            }
+        })
+
+    });
+    document.addEventListener("mouseup", e=>{
+        mouseButtons.forEach(b =>{
+            if (e.button === b.id){
+                if(b.state === MouseButtonState.Released || b.state == MouseButtonState.UP){
+                    b.state = MouseButtonState.UP;
+                }else{
+                    b.state = MouseButtonState.Released;
+                }
+            }
+        })
+
+    });
+    document.addEventListener("mousemove", e=>{
+        mouseInput.position = [e.clientX, e.clientY];
+        mouseInput.deltaPosition = [e.movementX, e.movementY]
+    });
+
+    canvas.addEventListener("mouseleave", e=>{
+        mouseInput.overCanvas = false;
+
+    });
+    canvas.addEventListener("mouseenter", e=>{
+        mouseInput.overCanvas = true;
+
+    });
+
+}
+
+function containsPoint_rect(rect, point){
+    if (point[0] < rect.x || point[0] > (rect.x + rect.sizex)) return false;
+    if (point[1] < rect.y || point[1] > (rect.y + rect.sizey)) return false;
+    return true;
+}
+
+function offset_rect(rect, offset){
+    rect.x += offset[0];
+    rect.y += offset[1]
+}
+
+function offset_circle(circle, offset){
+    circle.position = add_vector2(circle.position, offset);
+}
+
+function update_keyboardInput(keyboardInput){
+    let keys = [
+        keyboardInput.up, keyboardInput.left,
+        keyboardInput.right, keyboardInput.down,
+        keyboardInput.action0, keyboardInput.action1,
+        keyboardInput.action2, keyboardInput.action3,
+        keyboardInput.ctrl
+    ];
+
+    keys.forEach(k =>{
+        if(k.state === KeyState.Released){
+            k.state = KeyState.UP;
+        }else if(k.state === KeyState.Pressed){
+            k.state = KeyState.Down;
+        } 
+    });
+}
+
+function update_mouseInput(mouseInput){
+    let mouseButtons = [
+        mouseInput.leftButton, mouseInput.rightButton
+    ];
+
+    mouseButtons.forEach(b =>{
+        if(b.state === MouseButtonState.Released){
+            b.state = MouseButtonState.UP;
+        }else if(b.state === MouseButtonState.Pressed){
+            b.state = MouseButtonState.Down;
+        } 
+    });
+
+    mouseInput.deltaPosition = [0,0];
+}
+
+function loadLevel(game, levelName, completionState){
+    game.state = GameState.Loading
+    let loadlevelRequest =new XMLHttpRequest()
+    loadlevelRequest.open("GET", "http://localhost:8000/load_level.php?q=" + levelName, true);
+    loadlevelRequest.onreadystatechange = function () {
+        if(loadlevelRequest.readyState === XMLHttpRequest.DONE) {
+          var status = loadlevelRequest.status;
+          if (status === 0 || (status >= 200 && status < 400)) {
+            console.log("load successful");
+            console.log(loadlevelRequest.responseText)
+            game.world = JSON.parse(loadlevelRequest.responseText);
+            game.state = completionState || GameState.Play;
+          } else {
+            console.log("data is not sent");
+          }
+        }
+    }; 
+    loadlevelRequest.send();
+}
+
+function rotationMatix(angle){
+    let c = Math.cos(angle);
+    let s = Math.sin(angle);
+    return [
+        [c, s, 0],
+        [-s, c, 0],
+        [0, 0, 1]
+    ];
+}
+
+function move_player(player, movement){
+
+    player.origin = add_vector2(player.origin, movement);
+    offset_rect(player.baseRect, movement);
+    offset_rect(player.midRect, movement);
+
+    player.bottomPoint = add_vector2(player.bottomPoint, movement);
+}
+
+function setAngle_player(player, angle){
+    let originToBottomPoint = subtract_vector2(player.bottomPoint, player.origin);
+
+    let deltaAngle = angle - player.angle;
+
+    let matrix = rotationMatix(deltaAngle);
+    let newVector = transform_mat3x3_vector2(matrix, originToBottomPoint);
+    player.bottomPoint = add_vector2(player.origin, newVector)
+    player.angle = angle;
+
+
+}
+
+function draw_player(player, ctx){
+    ctx.fillStyle = "lime";
+    ctx.beginPath();
+    ctx.arc(player.origin[0], player.origin[1], 2, 0, 2 * Math.PI);
+    ctx.fill();
+    /*
+    ctx.fillStyle = "purple";
+    ctx.beginPath();
+    ctx.arc(player.bottomPoint[0], player.bottomPoint[1], 5, 0, 2 * Math.PI);
+    ctx.fill();*/
+    let midRect = player.midRect;
+    ctx.strokeStyle = "red";
+    ctx.strokeRect(midRect.x, midRect.y, midRect.sizex, midRect.sizey)
+
+    let baseRect = player.baseRect;
+    ctx.strokeStyle = "orange";
+    ctx.strokeRect(baseRect.x, baseRect.y, baseRect.sizex, baseRect.sizey)
+}
+
+
+function update_game(game, elapsed){
+    let ctx = game.ctx;
+    let keyboardInput = game.keyboardInput;
+    let mouseInput = game.mouseInput;
+    let camera = game.world.camera;
+
+
+    {
+        let canvasCursor = game.canvasCursor;
+        let canvas = game.canvas;
+        let bounds = canvas.getBoundingClientRect();
+        let pos = mouseInput.position;
+        canvasCursor.position = [pos[0] - bounds.x, pos[1] - bounds.y]
+    }
+    ctx.clearRect(camera.bounds.x,camera.bounds.y,camera.bounds.sizex, camera.bounds.sizey);
+    switch(game.state){
+        case GameState.Initialise:
+            let preMenu = game.preMenu;
+            switch(preMenu.state){
+                case PreMenuState.Closed:
+                    preMenu.pictureImagePosition[0] = 128 + 64 
+                    preMenu.pictureImagePosition[1] = 64;
+
+                    let activated = (mouseInput.leftButton.state === MouseButtonState.Pressed ||
+                    mouseInput.rightButton.state === MouseButtonState.Pressed) && mouseInput.overCanvas;
+                    if(activated){
+                        preMenu.state = PreMenuState.Opening
+                        preMenu.pictureImageTime = 0;
+                    }
+                    break;
+                case PreMenuState.Opening:
+                    preMenu.pictureImageTime += elapsed;
+                    preMenu.pictureImagePosition[0] = (128 + 64) - 256 *Math.sin(0.5 *preMenu.pictureImageTime) 
+                    preMenu.pictureImagePosition[1] = 64;
+                    let doorOpened = preMenu.pictureImageTime > 3;
+                    if(doorOpened){
+                        preMenu.pictureImageTime = 0;
+                        preMenu.state = PreMenuState.Opened;
+                    }
+                    break;
+                case PreMenuState.Opened:
+                    break;
+            }
+
+            switch (preMenu.fadeOut.state){
+                case TransitionState.InActive:
+                    let toMainMenu = preMenu.state === PreMenuState.Opened
+                    if(toMainMenu){
+                        preMenu.fadeOut.state = TransitionState.Active;
+                    }
+                    break;
+                case TransitionState.Active:
+                    preMenu.fadeOut.alpha += 1 * elapsed;
+                    let toComplete = preMenu.fadeOut.alpha >= 1 ;
+                    if(toComplete){
+                        preMenu.fadeOut.state = TransitionState.Complete;
+                    }
+                    break;
+                case TransitionState.Complete: 
+                    break;
+            }
+            let toMainMenu = preMenu.fadeOut.state === TransitionState.Complete;
+
+            if(toMainMenu){
+                game.state = GameState.MainMenu
+            }
+            
+            ctx.fillStyle = "black"; 
+            ctx.fillRect(0,0,640,480);
+            ctx.drawImage(preMenu.pictureImage, preMenu.pictureImagePosition[0], preMenu.pictureImagePosition[1])
+            ctx.drawImage(preMenu.backgroundImage,0,0)
+            ctx.fillStyle = `rgba(0,0,0,${preMenu.fadeOut.alpha})`; 
+            ctx.fillRect(0,0,640,480);
+            break;
+        case GameState.MainMenu:         
+            let fade = game.mainMenu.fade;
+            let buttons = [
+                game.mainMenu.newGameButton,
+                game.mainMenu.continueGameButton,
+                game.mainMenu.settingsButton
+            ];
+            switch(game.mainMenu.state){
+                case MainMenuState.Begin:
+                    if(fade.isFadeIn){
+                       switch(fade.state){
+                        case TransitionState.InActive:
+                            fade.state = TransitionState.Active;
+                            fade.alpha = 1.0;
+                            break;
+                        case TransitionState.Active:
+                            fade.alpha -= elapsed;
+                            let toComplete = fade.alpha <= 0
+                            if (toComplete){
+                                fade.state = TransitionState.Complete;
+                            }
+                            break;
+                        case TransitionState.Complete:
+
+                        } 
+                    }
+                    
+                    let toSelection = fade.state === TransitionState.Complete && fade.isFadeIn
+                    if (toSelection){
+                        game.mainMenu.state = MainMenuState.Selecting;
+                    }
+                    break;
+                case MainMenuState.Selecting:
+                    let mainMenu = game.mainMenu
+                    let buttons = [
+                        mainMenu.newGameButton, mainMenu.continueGameButton,
+                        mainMenu.settingsButton
+                    ];
+                    let selected = false;
+                    buttons.forEach(b =>{
+                        switch(b.state){
+                            case MainMenuButtonState.None:
+                                let inside = containsPoint_circle(b.area, game.canvasCursor.position);
+                                if(inside){
+                                    b.state = MainMenuButtonState.Hovered;
+                                    b.color = "white"
+                                }
+                                break;
+                            case MainMenuButtonState.Hovered:
+                                let outside = !containsPoint_circle(b.area, game.canvasCursor.position);
+                                let pressed =  containsPoint_circle(b.area, game.canvasCursor.position) && 
+                                    mouseInput.leftButton.state === MouseButtonState.Pressed;
+                                if(outside){
+                                    b.state = MainMenuButtonState.None;
+                                    b.color = "orange"
+                                }else if(pressed){
+                                    b.state = MainMenuButtonState.Pressed;
+                                    b.color = "green"
+                                }
+                                break;  
+                            case MainMenuButtonState.Pressed:
+                                selected = true;
+                                break;
+                           
+                        }
+                    });
+
+                    if(selected){
+                        game.mainMenu.state = MainMenuState.Ending
+                        fade.isFadeIn = false;
+                        fade.state = TransitionState.InActive;
+                    }
+                    break;
+                case MainMenuState.Ending:
+                    if(!fade.isFadeIn){
+                        switch(fade.state){
+                            case TransitionState.InActive:
+                                fade.state = TransitionState.Active;
+                                fade.alpha = 0.0;
+                                break;
+                            case TransitionState.Active:
+                                fade.alpha += elapsed;
+                                let toComplete = fade.alpha >= 1
+                                if (toComplete){
+                                    fade.state = TransitionState.Complete;
+                                }
+                                break;
+                            case TransitionState.Complete:
+                                break;
+                            } 
+                    }
+                    let ended = fade.state === TransitionState.Complete;
+                    if(ended){
+                        game.mainMenu.state = MainMenuState.Ended;
+                    }
+                    
+                    break;
+                case MainMenuState.Ended:
+                    break;        
+            }
+
+            let toGame = game.mainMenu.state === MainMenuState.Ended;
+
+            if(toGame){
+                loadLevel(game, "test_level1.json")
+            }
+            
+            ctx.fillStyle = "blue";
+            ctx.fillRect(0,0,640,480);
+
+            buttons.forEach(b =>{
+                let area = b.area;
+                ctx.fillStyle = b.color;
+                ctx.beginPath();
+                ctx.arc(area.position[0], area.position[1], area.radius,0, 2 * Math.PI)
+                ctx.fill();
+            });
+
+            ctx.font = "16px Arial";
+            ctx.textAlign = "center"
+            ctx.fillStyle = "black"
+            buttons.forEach(b =>{
+                let area = b.area;
+
+                ctx.fillText( b.text, area.position[0], area.position[1]); 
+            });
+ 
+            ctx.fillStyle = `rgba(0,0,0,${fade.alpha})`
+            ctx.fillRect(0,0,640,480);
+            break;
+        case GameState.Play:
+            let world = game.world
+            let player = world.player;
+            let linearMovement = player.linearMovement;
+            let controlXSpeed = function(){
+                let moveLeft = keyboardInput.left.state === KeyState.Pressed || 
+                        keyboardInput.left.state === KeyState.Down;
+                    let moveRight = keyboardInput.right.state === KeyState.Pressed ||
+                        keyboardInput.right.state === KeyState.Down;
+
+                    if(moveLeft){
+                        linearMovement.xSpeed -= linearMovement.xAcceleration * elapsed;
+                        linearMovement.xSpeed = Math.max(-300, linearMovement.xSpeed)
+                    }else if(moveRight){
+                        linearMovement.xSpeed += linearMovement.xAcceleration * elapsed;
+                        linearMovement.xSpeed = Math.min(300, linearMovement.xSpeed);
+                    }else{
+                        if(linearMovement.xSpeed > 0){
+                            linearMovement.xSpeed = linearMovement.xSpeed - 2.0 * linearMovement.yAcceleration * elapsed;//linearMovement.xSpeed - player.linearMovement.xFriction * elapsed;
+                            if(linearMovement.xSpeed < 0){
+                                linearMovement.xSpeed = 0;
+                            }
+                        }else if(linearMovement.xSpeed < 0){
+                            linearMovement.xSpeed = linearMovement.xSpeed + 2.0 * linearMovement.yAcceleration * elapsed;//linearMovement.xSpeed - player.linearMovement.xFriction * elapsed;
+                            if(linearMovement.xSpeed > 0){
+                                linearMovement.xSpeed = 0;
+                            }
+                        }
+
+                    }
+            }
+            let fall = function(){
+                linearMovement.ySpeed = linearMovement.ySpeed + linearMovement.yAcceleration  * elapsed;
+            }
+
+            switch(player.state){
+                case PlayerState.Falling:
+                    fall();
+                    controlXSpeed();
+                    
+
+                    break;
+                case PlayerState.Walking:
+                    controlXSpeed();
+                    let tojump = keyboardInput.action1.state === KeyState.Pressed;
+                    if(tojump){
+                        player.state = PlayerState.Jumping;
+                        linearMovement.ySpeed = -500
+                    }
+                    break;
+                case PlayerState.Jumping:
+                    controlXSpeed();
+                    fall();
+                    break;
+            }
+           
+
+            linearMovement.velocity = add_vector2(
+                scale_vector2(linearMovement.yVector, linearMovement.ySpeed),
+                scale_vector2(linearMovement.xVector, linearMovement.xSpeed )
+            );
+            linearMovement.velocity = scale_vector2(linearMovement.velocity, elapsed)
+            move_player(player, linearMovement.velocity)
+       
+            /*collision Update */
+            let walls = game.world.walls;
+            for(var i = 0; i < walls.length; i++){
+                let wall = walls[i];
+                if(intersect_rects(wall.rect, player.midRect)){
+                    let delta = 0
+                    if(player.linearMovement.xSpeed < 0){
+                        delta = (wall.rect.x + wall.rect.sizex) - player.midRect.x+0.001;
+                    }
+                    if(player.linearMovement.xSpeed > 0){
+                        delta = wall.rect.x -(player.midRect.x + player.midRect.sizex)-0.001;
+                    }
+                    player.linearMovement.xSpeed = 0.0
+                    move_player(player, [delta,0]);
+
+                    //player.state = PlayerState.Walking
+                    break;
+                }
+            }
+            switch(player.state){
+                case PlayerState.Jumping:
+                case PlayerState.Falling:
+                    let floors = game.world.floors;
+
+                    for(var i = 0; i < floors.length; i++){
+                        let floor = floors[i];
+                        if(intersect_rects(floor.rect, player.baseRect)){
+                            player.linearMovement.ySpeed = 0.0
+                            let delta = floor.rect.y - (player.baseRect.y + player.baseRect.sizey);
+                            move_player(player, [0, delta]);
+                            player.state = PlayerState.Walking
+                            break;
+                        }
+                    }
+
+                    
+                   
+                    break;
+            }
+
+            /*camera update */
+            switch(camera.state){
+                case CameraState.Fixed:
+                    break;
+                case CameraState.Targeted:
+                        
+                    break;
+                case CameraState.HardSet:
+                    switch(camera.targetId){
+                        case CameraTargetId.PlayerOrigin:
+                            camera.position[0] = player.origin[0] - camera.origin[0] * 2 * camera.boundTarget[0];
+                            camera.position[1] = player.origin[1] - camera.origin[1] * 2 * camera.boundTarget[1];
+                        break;
+                    }
+                    break;
+            }
+            ctx.setTransform(
+                1,0,
+                0,1,
+                0,0
+            );
+            ctx.translate(camera.origin[0], camera.origin[1]);
+            ctx.translate(-camera.position[0], -camera.position[1]);
+            ctx.rotate(-camera.angle);
+            ctx.translate(-camera.origin[0], -camera.origin[1]);
+
+            /**draw the world */
+            ctx.fillStyle = "pink";
+            ctx.fillRect(camera.bounds.x,camera.bounds.y,camera.bounds.sizex, camera.bounds.sizey);
+
+            for(var i = 0; i < world.floors.length; i++){
+                let floor = world.floors[i];
+                let rect = floor.rect;
+                ctx.fillStyle = "purple";
+                ctx.fillRect(rect.x, rect.y, rect.sizex, rect.sizey)
+            }
+
+            for(var i = 0; i < world.walls.length; i++){
+                let wall = world.walls[i];
+                let rect = wall.rect;
+                ctx.fillStyle = "green";
+                ctx.fillRect(rect.x, rect.y, rect.sizex, rect.sizey)
+            }
+            draw_player(player, ctx);
+            
+            break;
+    }
+    update_mouseInput(game.mouseInput);
+    update_keyboardInput(game.keyboardInput);
+
+
+}
+
+function init_preMenu(preMenu){
+    preMenu.backgroundImage = new Image();
+    preMenu.backgroundImage.onload = function(){};
+    preMenu.backgroundImage.src = "assets/images/init_background.png"
+    preMenu.pictureImage = new Image();
+    preMenu.pictureImage.onload = function(){};
+    preMenu.pictureImage.src = "assets/images/init_picture.png"
+
+}
+

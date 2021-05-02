@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="description" content="Disoriented City Game Engine">
+        <meta name="author" content="AntonyA3">
+        <meta name="author-email" content="antonya3@protonmail.com">
+        <link rel="stylesheet" href="engine.css">
+    </head>
+    <body>
+        <div id="top-container">
+            
+            <div style="grid-row: 1; background-color: orange;">Title Engine Panel</div> 
+            <div style="grid-row: 2;">
+                <input type="radio" id="play-button" name="engine-mode">
+                <label for="selection-tool-button"> Play</label>
+                    
+                <input type="radio" id="edit-button" name="engine-mode">
+                <label for="pan-tool-button">Edit</label>
+                <button id="save-level-button">Save Level</button>
+                <button id="load-level-button">Load Level</button>
+                <input id="grid-active-checkbox" type="checkbox">
+                <label for="grid-active-checkbox">Show Grid</label>
+
+            </div>
+            <div style="grid-row: 3;">
+                <canvas id="canvas" width="640" height="480"></canvas>
+            </div>
+            
+            <div id="right-panel"> 
+                <span class="title" style="grid-row: 1">
+                    Explorer
+                </span>
+
+                <div style="grid-row: 2; background-color: pink; overflow: auto;">
+
+                    <ul class="tree-list">
+                        <li id="game-entity" class="tree-view-parent"><span>&#x25BE;</span>Game
+                            <ul class="tree-list">
+                                <li class="tree-view-parent"><span>&#x25BE;</span>World
+                                    <ul class="tree-list">
+                                        <li id="player-entity">Player</li>
+                                        
+                                        <li class="tree-view-parent"><span>&#x25BE;</span>RectColliders
+                                            <ul class="tree-list" id="rect-collider-list">
+                                            </ul>
+                                        </li>
+                                        <li class="tree-view-parent"> <span>&#x25BE;</span>Floors
+                                            <ul class="tree-list" id="floor-list">
+                                            </ul>
+                                        </li>
+                                        <li  class="tree-view-parent"><span>&#x25BE;</span>Walls
+                                            <ul class="tree-list" id="wall-list">
+                                            </ul>
+                                        </li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </li>
+                    </ul>
+
+                </div>
+                <span class="title" style="grid-row: 3;">
+                    Properties
+                </span>
+                <div id="properties-container" style=" background-color: pink; overflow: auto; white-space: nowrap;">
+                    
+                </div>
+            </div>
+            <div id="assets-toolbar-panel"> 
+                <span class="title" style="grid-row: 1;">Assets</span>
+                <div style="grid-row: 2;" id="asset-button-container">
+                    <button id="add-floor-button">Add Floor</button>
+                    <button id="add-wall-button">Add Wall</button> 
+                    <button id="add-rect-collider-button">Add Rect Collider</button>  
+                </div>
+                <span class="title" style="grid-row: 3;">Tools</span>
+                <div style="grid-row: 4;" id="asset-button-container">
+                    <input type="radio" id="selection-tool-button" name="tools">
+                    <label for="selection-tool-button">Selection Tool</label><br>
+                    
+                    <input type="radio" id="pan-tool-button" name="tools">
+                    <label for="pan-tool-button">Pan Tool</label><br>
+
+                    <input type="radio" id="move-tool-button" name="tools">
+                    <label for="move-tool-button">Move Tool</label><br>
+
+                    <input type="radio" id="box-scale-tool-button" name="tools">
+                    <label for="box-scale-tool-button">Box Scale Tool</label><br>
+                </div>
+                <span class="title" style="grid-row: 5;">Tool Properties</span>
+                <div style="grid-row: 6;" id="tool-properties-container" style=" background-color: turquoise; overflow: auto; white-space: nowrap;">
+                   
+                </div>
+
+               
+            </div>
+        </div>
+        <script src="rect.js"></script>
+        <script src="mouseInput.js"></script>
+        <script src="keyboardInput.js"></script>
+        <script src="game.js"></script>
+        <script src="moveTool.js"></script>
+        <script src="boxScaleTool.js"></script>
+        <script src="engine.js"></script>
+    </body>
+</html>
